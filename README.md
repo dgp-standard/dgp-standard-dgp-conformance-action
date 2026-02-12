@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v4
       
       - name: Verify DGP v1.0 Conformance
-        uses: Jtjr86/dgp-standard-dgp-conformance-action@v1
+        uses: dgp-standard/dgp-conformance-action@v1
         with:
           language: python
           test_command: pytest tests/test_contract_compliance.py -v
@@ -40,7 +40,7 @@ jobs:
       - uses: actions/checkout@v4
       
       - name: Verify DGP v1.0 Conformance
-        uses: Jtjr86/dgp-standard-dgp-conformance-action@v1
+        uses: dgp-standard/dgp-conformance-action@v1
         with:
           language: node
           test_command: npm test
