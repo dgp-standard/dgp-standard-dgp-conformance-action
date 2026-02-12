@@ -51,13 +51,13 @@ jobs:
 If your test command follows standard patterns, you can omit `test_command`:
 
 ```yaml
-- uses: Jtjr86/dgp-standard-dgp-conformance-action@v1
+- uses: dgp-standard/dgp-conformance-action@v1
   with:
     language: python  # Auto-runs: pytest tests/test_contract_compliance.py -v
 ```
 
 ```yaml
-- uses: Jtjr86/dgp-standard-dgp-conformance-action@v1
+- uses: dgp-standard/dgp-conformance-action@v1
   with:
     language: node  # Auto-runs: npm test
 ```
@@ -136,4 +136,4 @@ MIT — See [LICENSE](./LICENSE)
 
 ## Contributing
 
-Issues and PRs welcome at [dgp-standard-dgp-conformance-action](https://github.com/Jtjr86/dgp-standard-dgp-conformance-action)
+Issues and PRs welcome at [dgp-conformance-action](https://github.com/dgp-standard/dgp-conformance-action)
