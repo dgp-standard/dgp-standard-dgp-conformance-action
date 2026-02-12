@@ -1,0 +1,105 @@
+name: 'DGP Conformance Verification'
+description: 'Verify DGP v1.0 conformance by running canonical vector tests'
+author: 'dgp-standard'
+
+branding:
+  icon: 'check-circle'
+  color: 'green'
+
+inputs:
+  language:
+    description: 'Implementation language (python or node)'
+    required: true
+  test_command:
+    description: 'Command to run conformance tests'
+    required: false
+    default: 'auto'
+  working_directory:
+    description: 'Working directory for running tests'
+    required: false
+    default: '.'
+
+outputs:
+  conformant:
+    description: 'Whether the implementation passed 8/8 canonical vectors'
+    value: ${{ steps.verify.outputs.conformant }}
+  vectors_passed:
+    description: 'Number of canonical vectors passed'
+    value: ${{ steps.verify.outputs.vectors_passed }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Python
+      if: inputs.language == 'python'
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    
+    - name: Setup Node.js
+      if: inputs.language == 'node'
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    
+    - name: Install Python dependencies
+      if: inputs.language == 'python'
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      run: |
+        if [ -f requirements.txt ]; then
+          pip install -r requirements.txt
+        fi
+        pip install pytest
+    
+    - name: Install Node dependencies
+      if: inputs.language == 'node'
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      run: |
+        if [ -f package.json ]; then
+          npm install
+        fi
+    
+    - name: Verify DGP Conformance
+      id: verify
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        LANGUAGE: ${{ inputs.language }}
+        TEST_COMMAND: ${{ inputs.test_command }}
+      run: |
+        # Determine test command
+        if [ "$TEST_COMMAND" = "auto" ]; then
+          if [ "$LANGUAGE" = "python" ]; then
+            CMD="pytest tests/test_contract_compliance.py -v"
+          elif [ "$LANGUAGE" = "node" ]; then
+            CMD="npm test"
+          fi
+        else
+          CMD="$TEST_COMMAND"
+        fi
+        
+        echo "Running: $CMD"
+        
+        # Run tests and capture output
+        if $CMD > test_output.txt 2>&1; then
+          # Check for 8 passed vectors
+          if grep -q "8 passed" test_output.txt || grep -q "8/8" test_output.txt; then
+            echo "✅ DGP v1.0 Conformant (8/8 canonical vectors passing)"
+            echo "conformant=true" >> $GITHUB_OUTPUT
+            echo "vectors_passed=8" >> $GITHUB_OUTPUT
+            cat test_output.txt
+            exit 0
+          else
+            echo "❌ Not all canonical vectors passed"
+            cat test_output.txt
+            echo "conformant=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+        else
+          echo "❌ Tests failed"
+          cat test_output.txt
+          echo "conformant=false" >> $GITHUB_OUTPUT
+          exit 1
+        fi

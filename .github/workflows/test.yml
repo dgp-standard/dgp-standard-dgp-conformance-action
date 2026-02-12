@@ -1,0 +1,45 @@
+name: Test Conformance Action
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-action:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        test:
+          - name: "Python conformant repo"
+            repo: "dgp-standard/dgp-standard-dgp-py"
+            language: "python"
+            command: "pytest tests/test_contract_compliance.py -v"
+          - name: "JavaScript conformant repo"
+            repo: "dgp-standard/dgp-standard-dgp-js"
+            language: "node"
+            command: "npm test"
+    
+    steps:
+      - name: Checkout conformance action
+        uses: actions/checkout@v4
+        with:
+          path: action
+      
+      - name: Checkout test implementation
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ matrix.test.repo }}
+          path: implementation
+      
+      - name: Test conformance verification
+        uses: ./action
+        with:
+          language: ${{ matrix.test.language }}
+          test_command: ${{ matrix.test.command }}
+          working_directory: implementation
+      
+      - name: Verify conformance output
+        run: |
+          echo "✅ Conformance action validated with ${{ matrix.test.name }}"
