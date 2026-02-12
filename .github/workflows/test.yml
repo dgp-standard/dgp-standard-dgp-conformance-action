@@ -15,11 +15,11 @@ jobs:
           - name: "Python conformant repo"
             repo: "dgp-standard/dgp-standard-dgp-py"
             language: "python"
-            command: "pytest tests/test_contract_compliance.py -v"
+            command: "pytest tests/test_contract_compliance.py"
           - name: "JavaScript conformant repo"
             repo: "dgp-standard/dgp-standard-dgp-js"
             language: "node"
-            command: "npm test"
+            command: "node --test test/contract-compliance.test.js"
     
     steps:
       - name: Checkout conformance action
