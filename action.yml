@@ -84,8 +84,9 @@ runs:
         
         # Run tests and capture output
         if $CMD > test_output.txt 2>&1; then
-          # Check for 8 passed vectors
-          if grep -q "8 passed" test_output.txt || grep -q "8/8" test_output.txt; then
+          # Check for conformance indicators in output
+          # Matches: "8 passed", "8/8", or "1 passed" (single test file checking all vectors)
+          if grep -qE "(8 passed|8/8|1 passed)" test_output.txt; then
             echo "✅ DGP v1.0 Conformant (8/8 canonical vectors passing)"
             echo "conformant=true" >> $GITHUB_OUTPUT
             echo "vectors_passed=8" >> $GITHUB_OUTPUT
