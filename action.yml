@@ -68,6 +68,9 @@ runs:
       env:
         LANGUAGE: ${{ inputs.language }}
         TEST_COMMAND: ${{ inputs.test_command }}
+        DGP_RESULT_PATH: .dgp/conformance-result.json
+        DGP_EXPECTED_CANONICAL_HASH: b551d99d6c6ac9dfebd660ad1be2e326ce31aef372a659fa7a6a5af1bf33b9c2
+        DGP_CANONICAL_URL: https://raw.githubusercontent.com/dgp-standard/dgp-standard-dgp-spec/v1.0.1/conformance/canonical-v1.json
       run: |
         # Determine test command
         if [ "$TEST_COMMAND" = "auto" ]; then
@@ -81,25 +84,83 @@ runs:
         fi
         
         echo "Running: $CMD"
-        
-        # Run tests and capture output (ignore exit code, check output patterns)
-        set +e
-        $CMD > test_output.txt 2>&1
-        set -e
-        
-        # Check for conformance success patterns:
-        # - Node.js: "ok" + "GovernanceEngine contract compliance" AND "# fail 0"
-        # - Python: "1 passed" (single test file with all vectors)
-        if (grep -q "GovernanceEngine contract compliance" test_output.txt && grep -q "# fail 0" test_output.txt) || \
-           grep -qE "(1 passed|8 passed|8/8)" test_output.txt; then
-          echo "✅ DGP v1.0 Conformant (8/8 canonical vectors passing)"
-          echo "conformant=true" >> $GITHUB_OUTPUT
-          echo "vectors_passed=8" >> $GITHUB_OUTPUT
-          cat test_output.txt
-          exit 0
-        else
-          echo "❌ Not all canonical vectors passed"
-          cat test_output.txt
+
+        # Validate sealed canonical vectors identity from pinned source
+        canonical_sha=$(curl -fsSL "$DGP_CANONICAL_URL" | jq -r '.sha256')
+        if [ -z "$canonical_sha" ] || [ "$canonical_sha" = "null" ]; then
+          echo "❌ canonical-v1.json is missing sha256"
           echo "conformant=false" >> $GITHUB_OUTPUT
           exit 1
         fi
+
+        if echo "$canonical_sha" | grep -qiE 'compute|placeholder'; then
+          echo "❌ canonical-v1.json sha256 is unsealed placeholder: $canonical_sha"
+          echo "conformant=false" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+
+        if [ "$canonical_sha" != "$DGP_EXPECTED_CANONICAL_HASH" ]; then
+          echo "❌ canonical-v1.json sha256 mismatch"
+          echo "Expected: $DGP_EXPECTED_CANONICAL_HASH"
+          echo "Got:      $canonical_sha"
+          echo "conformant=false" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+        
+        # Run tests normally (exit code matters)
+        $CMD
+
+        # Require machine-readable result artifact
+        if [ ! -f "$DGP_RESULT_PATH" ]; then
+          echo "❌ Missing conformance result file: $DGP_RESULT_PATH"
+          echo "Implementations MUST write JSON results to this path."
+          echo "conformant=false" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+
+        # Validate JSON contract
+        if ! jq -e 'type == "object"' "$DGP_RESULT_PATH" > /dev/null; then
+          echo "❌ Invalid conformance result JSON: root must be an object"
+          cat "$DGP_RESULT_PATH"
+          echo "conformant=false" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+
+        if ! jq -e '
+          (.dgp_version | type == "string") and
+          (.engine | type == "string") and
+          (.vectors_passed | type == "number") and
+          (.vectors_total | type == "number") and
+          (.canonical_hash | type == "string") and
+          (.timestamp | type == "string")
+        ' "$DGP_RESULT_PATH" > /dev/null; then
+          echo "❌ Invalid conformance result JSON: required typed fields are missing"
+          cat "$DGP_RESULT_PATH"
+          echo "conformant=false" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+
+        passed=$(jq -r '.vectors_passed' "$DGP_RESULT_PATH")
+        total=$(jq -r '.vectors_total' "$DGP_RESULT_PATH")
+        hash=$(jq -r '.canonical_hash' "$DGP_RESULT_PATH")
+
+        if [ "$hash" != "$DGP_EXPECTED_CANONICAL_HASH" ]; then
+          echo "❌ Canonical hash mismatch"
+          echo "Expected: $DGP_EXPECTED_CANONICAL_HASH"
+          echo "Got:      $hash"
+          cat "$DGP_RESULT_PATH"
+          echo "conformant=false" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+
+        if [ "$passed" != "$total" ]; then
+          echo "❌ Not all vectors passed: $passed/$total"
+          cat "$DGP_RESULT_PATH"
+          echo "conformant=false" >> $GITHUB_OUTPUT
+          echo "vectors_passed=$passed" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+
+        echo "✅ DGP v1.0 Conformant ($passed/$total) with pinned canonical hash"
+        echo "conformant=true" >> $GITHUB_OUTPUT
+        echo "vectors_passed=$passed" >> $GITHUB_OUTPUT

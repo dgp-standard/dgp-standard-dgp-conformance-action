@@ -78,7 +78,7 @@ If your test command follows standard patterns, you can omit `test_command`:
 
 | Output | Description |
 |--------|-------------|
-| `conformant` | `true` if 8/8 vectors passed, `false` otherwise |
+| `conformant` | `true` if all required vectors passed and canonical hash matches, `false` otherwise |
 | `vectors_passed` | Number of canonical vectors passed |
 
 ---
@@ -90,6 +90,29 @@ Your implementation must:
 1. **Pass all 8 canonical vectors** from [canonical-v1.json](https://github.com/dgp-standard/dgp-standard-dgp-spec/blob/main/conformance/canonical-v1.json)
 2. **Match expected outputs bit-for-bit** (no approximations)
 3. **Include the canonical vectors** in your test suite
+4. **Emit machine-readable conformance artifact** at `.dgp/conformance-result.json` (or `DGP_RESULT_PATH`)
+5. **Include pinned canonical hash** `b551d99d6c6ac9dfebd660ad1be2e326ce31aef372a659fa7a6a5af1bf33b9c2`
+
+Required artifact shape:
+
+```json
+{
+  "dgp_version": "1.0.0",
+  "engine": "node",
+  "vectors_passed": 8,
+  "vectors_total": 8,
+  "canonical_hash": "b551d99d6c6ac9dfebd660ad1be2e326ce31aef372a659fa7a6a5af1bf33b9c2",
+  "timestamp": "2026-02-15T10:00:00Z"
+}
+```
+
+Schema reference:
+[conformance-result.schema.json](https://github.com/dgp-standard/dgp-standard-dgp-spec/blob/main/schemas/conformance-result.schema.json)
+
+### Why grep-based conformance is banned
+
+The action does not trust console text patterns like `8 passed` or `8/8` because they are spoofable.
+Conformance is granted only when the JSON artifact exists, contains required typed fields, matches the pinned canonical hash, and reports full vector pass totals.
 
 ---
 
@@ -118,9 +141,19 @@ Result: [![DGP v1.0 Conformant](https://img.shields.io/badge/DGP-v1.0%20Conforma
 
 ### "Not all canonical vectors passed"
 
-- Ensure your test output contains `8 passed` or `8/8`
-- Check that all 8 vectors from `canonical-v1.json` are tested
+- Check `vectors_passed` and `vectors_total` in `.dgp/conformance-result.json`
+- Confirm `canonical_hash` equals pinned DGP v1.0 hash
 - Verify bit-for-bit match (no rounding errors, no string changes)
+
+### "Missing conformance result file"
+
+- Ensure tests write `.dgp/conformance-result.json`
+- If custom path is used, set `DGP_RESULT_PATH` to that location
+
+### "Canonical hash mismatch"
+
+- Recompute hash using DGP non-self-referential algorithm
+- Verify vectors file is canonical and unmodified
 
 ### "Tests failed"
 
